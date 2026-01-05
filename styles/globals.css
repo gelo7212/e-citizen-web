@@ -1,0 +1,116 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  @apply box-border;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  @apply text-admin-900 antialiased bg-admin-50;
+}
+
+/* Material Icons Styling */
+.material-icons,
+.material-icons-outlined {
+  @apply select-none align-middle leading-none;
+  font-variation-settings: 'FILL' 1;
+}
+
+.material-icons {
+  @apply text-2xl;
+  font-family: 'Material Icons';
+}
+
+.material-icons-outlined {
+  @apply text-2xl;
+  font-family: 'Material Icons Outlined';
+  font-variation-settings: 'FILL' 0;
+}
+
+/* Layout utilities */
+.container-main {
+  @apply min-h-screen flex flex-col;
+}
+
+.page-content {
+  @apply flex-1;
+}
+
+/* Admin Theme Styles */
+.admin-page {
+  @apply bg-admin-50 min-h-screen;
+}
+
+.admin-sidebar {
+  @apply bg-white border-r border-admin-200 shadow-admin-nav;
+}
+
+.admin-header {
+  @apply bg-white border-b border-admin-200 shadow-admin-nav;
+}
+
+.admin-card {
+  @apply bg-white rounded-admin-lg shadow-admin-card border border-admin-100;
+}
+
+.admin-card:hover {
+  @apply shadow-admin-card-hover transition-shadow duration-200;
+}
+
+.admin-badge {
+  @apply inline-flex items-center rounded-full px-3 py-1 text-sm font-medium;
+}
+
+.admin-badge-primary {
+  @apply bg-blue-100 text-blue-800;
+}
+
+.admin-badge-success {
+  @apply bg-green-100 text-green-800;
+}
+
+.admin-badge-danger {
+  @apply bg-red-100 text-red-800;
+}
+
+.admin-badge-warning {
+  @apply bg-amber-100 text-amber-800;
+}
+
+.admin-btn {
+  @apply inline-flex items-center justify-center px-4 py-2 rounded-admin-md font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed;
+}
+
+.admin-btn-primary {
+  @apply bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800;
+}
+
+.admin-btn-secondary {
+  @apply bg-admin-100 text-admin-700 hover:bg-admin-200 active:bg-admin-300;
+}
+
+.admin-btn-danger {
+  @apply bg-red-600 text-white hover:bg-red-700 active:bg-red-800;
+}
+
+.admin-input {
+  @apply w-full px-3 py-2 rounded-admin-md border border-admin-200 bg-white text-admin-900 placeholder-admin-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200;
+}
+
+/* Responsive utilities */
+@media (max-width: 640px) {
+  .hidden-mobile {
+    @apply hidden;
+  }
+}
+
+@media (min-width: 641px) {
+  .visible-mobile {
+    @apply hidden;
+  }
+}

@@ -1,0 +1,30 @@
+# Development docker-compose
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    environment:
+      NODE_ENV: development
+      NEXT_PUBLIC_API_BASE: http://localhost:3001
+      NEXT_PUBLIC_WS_URL: ws://admin.localhost
+    command: npm run dev
+
+  # Mock API server
+  api:
+    image: node:18-alpine
+    working_dir: /app
+    volumes:
+      - ./mock-api:/app
+    ports:
+      - "3001:3001"
+    command: node server.js
+    environment:
+      PORT: 3001
