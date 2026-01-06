@@ -567,3 +567,42 @@ export async function getSOSHQById(
     };
   }
 }
+
+/**
+ * Create anonymous rescuer identity
+ * POST /api/sos/:sosId/anon-rescuer
+ */
+export async function createAnonymousRescuer(
+  sosId: string,
+  cityCode: string
+): Promise<{ success: boolean; data?: { token: string }; error?: string }> {
+  try {
+    const bffUrl = getApiUrl();
+    const url = `${bffUrl}/api/sos/${sosId}/anon-rescuer`;
+
+    const response = await authenticatedFetch(url, {
+      method: 'POST',
+      body: JSON.stringify({ cityCode }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      return {
+        success: false,
+        error: errorData.error || errorData.message || `Failed to create anonymous rescuer: ${response.statusText}`,
+      };
+    }
+
+    const data = await response.json();
+    return {
+      success: true,
+      data: data.data || data,
+    };
+  } catch (error) {
+    console.error('Error creating anonymous rescuer:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to create anonymous rescuer',
+    };
+  }
+}

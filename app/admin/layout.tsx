@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
+import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { useRequireAuth } from '@/hooks/useAuth';
 import { useScopes } from '@/hooks/useScopes';
 import { SetupProvider } from '@/context/SetupContext';
@@ -18,10 +18,17 @@ export default function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const auth = useRequireAuth();
-  const scopes = useScopes();
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  // Check if on rescuer route with token (anonymous rescuer access)
+  const isRescuerRoute = pathname.startsWith('/admin/rescuer/');
+  const hasRescuerToken = isRescuerRoute && searchParams.get('token');
+
+  // Skip auth hooks for rescuer route with token
+  const auth = !hasRescuerToken ? useRequireAuth() : null;
+  const scopes = !hasRescuerToken ? useScopes() : null;
 
   // Check if on setup routes or already on a valid admin subsection
   const isSetupRoute = pathname.startsWith('/admin/setup');
@@ -30,11 +37,16 @@ export default function AdminLayout({
   const isYouthRoute = pathname.startsWith('/admin/sk-youth');
   const isSosRoute = pathname.startsWith('/admin/sos');
   const isInvitesRoute = pathname.startsWith('/admin/invites');
-  const isOnValidRoute = isSetupRoute || isCityRoute || isSuperUserRoute || isYouthRoute || isSosRoute || isInvitesRoute;
+  const isOnValidRoute = isSetupRoute || isCityRoute || isSuperUserRoute || isYouthRoute || isSosRoute || isInvitesRoute || hasRescuerToken;
 
   useEffect(() => {
+    // Skip auth check for rescuer route with token (will be validated in page component)
+    if (hasRescuerToken) {
+      return;
+    }
+
     // Only redirect to default admin page if not on a setup route and not already on a valid admin subsection
-    if (!auth.isLoading && scopes.canAccessAdmin && !isOnValidRoute) {
+    if (auth && !auth.isLoading && scopes?.canAccessAdmin && !isOnValidRoute) {
       // Redirect to appropriate admin section based on role
       if (isAppAdmin(auth.user)) {
         router.push('/admin/super-user');
@@ -49,9 +61,9 @@ export default function AdminLayout({
         router.push('/admin/city');
       }
     }
-  }, [auth.isLoading, scopes.canAccessAdmin, auth.user, router, isOnValidRoute]);
+  }, [auth?.isLoading, scopes?.canAccessAdmin, auth?.user, router, isOnValidRoute, hasRescuerToken]);
 
-  if (auth.isLoading) {
+  if (!hasRescuerToken && auth && auth.isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <p className="text-gray-600">Loading...</p>
@@ -59,7 +71,8 @@ export default function AdminLayout({
     );
   }
 
-  if (!scopes.canAccessAdmin) {
+  // Skip admin access check for rescuer route with token
+  if (!hasRescuerToken && auth && !scopes?.canAccessAdmin) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-50">
         <div className="bg-white p-8 rounded-lg shadow-md max-w-md text-center">
@@ -83,7 +96,11 @@ export default function AdminLayout({
     );
   }
 
-  // Wrap with SetupProvider and SetupGuard
+  // Wrap with SetupProvider and SetupGuard (skip for rescuer route with token)
+  if (hasRescuerToken) {
+    return <>{children}</>;
+  }
+
   return (
     <SetupProvider>
       <SetupGuard>{children}</SetupGuard>

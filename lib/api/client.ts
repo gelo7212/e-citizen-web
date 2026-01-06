@@ -1,6 +1,7 @@
 import axios, { AxiosError, AxiosRequestConfig } from 'axios';
 import { ApiResponse } from '@/types';
 import { getAuthToken } from '@/lib/auth/store';
+import { refreshAccessToken } from '@/lib/services/authService';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://admin.localhost';
 
@@ -11,6 +12,36 @@ export const apiClient = axios.create({
     'Content-Type': 'application/json',
   },
 });
+
+// Flag to prevent infinite retry loops
+let isRefreshing = false;
+let refreshPromise: Promise<boolean> | null = null;
+
+/**
+ * Refresh token and retry the failed request
+ */
+async function handleTokenRefresh(): Promise<boolean> {
+  // If already refreshing, wait for that promise
+  if (isRefreshing && refreshPromise) {
+    return refreshPromise;
+  }
+
+  isRefreshing = true;
+  refreshPromise = (async () => {
+    try {
+      const result = await refreshAccessToken();
+      return result.success;
+    } catch (error) {
+      console.error('[API Client] Token refresh failed:', error);
+      return false;
+    } finally {
+      isRefreshing = false;
+      refreshPromise = null;
+    }
+  })();
+
+  return refreshPromise;
+}
 
 // Request interceptor - add token
 apiClient.interceptors.request.use(
@@ -24,18 +55,42 @@ apiClient.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Response interceptor - handle errors
+// Response interceptor - handle 401 with automatic refresh
 apiClient.interceptors.response.use(
   (response) => response,
-  (error: AxiosError) => {
-    if (error.response?.status === 401) {
-      // Token expired or invalid
+  async (error: AxiosError) => {
+    const originalRequest = error.config as any;
+
+    // If 401 and not already retried, attempt token refresh
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+
+      try {
+        // Attempt to refresh token
+        const refreshed = await handleTokenRefresh();
+
+        if (refreshed) {
+          // Get the new token and update the request
+          const newToken = getAuthToken();
+          if (newToken) {
+            originalRequest.headers.Authorization = `Bearer ${newToken}`;
+            // Retry the original request with the new token
+            return apiClient(originalRequest);
+          }
+        }
+      } catch (refreshError) {
+        console.error('[API Client] Token refresh attempt failed:', refreshError);
+      }
+
+      // If refresh failed, clear auth and redirect to login
       if (typeof window !== 'undefined') {
         localStorage.removeItem('auth_token');
+        localStorage.removeItem('auth_refresh_token');
         localStorage.removeItem('auth_user');
         window.location.href = '/citizen/home';
       }
     }
+
     return Promise.reject(error);
   }
 );

@@ -1,9 +1,10 @@
 /**
  * Token Rotation Utility
- * Handles automatic token refresh when expiration is approaching (5 minutes)
+ * Implements passive token refresh strategy:
+ * - No active checking of token expiration
+ * - Tokens are refreshed only when requests fail with 401
+ * - Refresh tokens are valid for 7 days, providing a large buffer
  */
-
-const TOKEN_REFRESH_THRESHOLD = 5 * 60 * 1000; // 5 minutes in milliseconds
 
 /**
  * Decode JWT payload without verification (client-side)
@@ -33,21 +34,6 @@ function getTokenExpirationTime(token: string): number | null {
 }
 
 /**
- * Check if token will expire within the threshold (5 minutes)
- */
-export function willTokenExpireSoon(token: string): boolean {
-  const expirationTime = getTokenExpirationTime(token);
-  if (!expirationTime) {
-    return true; // Treat invalid tokens as expired
-  }
-
-  const now = Date.now();
-  const timeUntilExpiration = expirationTime - now;
-
-  return timeUntilExpiration <= TOKEN_REFRESH_THRESHOLD;
-}
-
-/**
  * Get time remaining until token expires
  */
 export function getTokenTimeRemaining(token: string): number | null {
@@ -67,87 +53,14 @@ export function isTokenExpired(token: string): boolean {
 }
 
 /**
- * Refresh token if it will expire soon, otherwise return existing token
+ * Check if token will expire soon (within 5 minutes)
  */
-export async function refreshTokenIfNeeded(
-  currentToken: string,
-  refreshFn: () => Promise<{ success: boolean; token?: string; error?: string }>
-): Promise<{ success: boolean; token: string; wasRefreshed: boolean; error?: string }> {
-  if (isTokenExpired(currentToken)) {
-    // Token is already expired, must refresh
-    const result = await refreshFn();
-    if (result.success && result.token) {
-      return {
-        success: true,
-        token: result.token,
-        wasRefreshed: true,
-      };
-    }
-    return {
-      success: false,
-      token: currentToken,
-      wasRefreshed: false,
-      error: result.error || 'Token refresh failed',
-    };
+export function willTokenExpireSoon(token: string): boolean {
+  const timeRemaining = getTokenTimeRemaining(token);
+  if (timeRemaining === null) {
+    return true; // Treat as expiring soon if we can't determine
   }
-
-  if (willTokenExpireSoon(currentToken)) {
-    // Token will expire soon, refresh proactively
-    console.log('[TokenRotation] Token will expire soon, refreshing proactively');
-    const result = await refreshFn();
-    if (result.success && result.token) {
-      return {
-        success: true,
-        token: result.token,
-        wasRefreshed: true,
-      };
-    }
-    // If refresh fails, return current token and let it be used
-    console.warn('[TokenRotation] Proactive refresh failed, using existing token', result.error);
-    return {
-      success: true,
-      token: currentToken,
-      wasRefreshed: false,
-    };
-  }
-
-  // Token is still valid and won't expire soon
-  return {
-    success: true,
-    token: currentToken,
-    wasRefreshed: false,
-  };
+  const fiveMinutesInMs = 5 * 60 * 1000;
+  return timeRemaining <= fiveMinutesInMs;
 }
 
-/**
- * Schedule periodic token rotation check
- * Returns a cleanup function to stop the interval
- */
-export function scheduleTokenRotation(
-  getToken: () => string | null,
-  refreshFn: () => Promise<{ success: boolean; token?: string; error?: string }>,
-  checkInterval: number = 60000 // Check every 60 seconds by default
-): () => void {
-  const intervalId = setInterval(async () => {
-    const token = getToken();
-    if (!token) {
-      return;
-    }
-
-    const timeRemaining = getTokenTimeRemaining(token);
-    if (timeRemaining === null) {
-      return;
-    }
-
-    // If token will expire in less than 10 minutes, refresh it
-    if (timeRemaining <= 10 * 60 * 1000) {
-      console.log(
-        `[TokenRotation] Token expiring in ${Math.round(timeRemaining / 1000)}s, refreshing...`
-      );
-      await refreshTokenIfNeeded(token, refreshFn);
-    }
-  }, checkInterval);
-
-  // Return cleanup function
-  return () => clearInterval(intervalId);
-}

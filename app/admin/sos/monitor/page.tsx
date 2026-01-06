@@ -5,7 +5,7 @@ import { useSOS } from '@/hooks/useSOS';
 import { useRequireAuth } from '@/hooks/useAuth';
 import { useScopes } from '@/hooks/useScopes';
 import type { NearbySOS, SOSHQ } from '@/lib/services/sosService';
-import { getSOSHQByCity } from '@/lib/services/sosService';
+import { getSOSHQByCity, createAnonymousRescuer } from '@/lib/services/sosService';
 import SOSMapComponent from '@/components/admin/sos/SOSMap';
 import SOSChatBox from '@/components/admin/sos/SOSChatBox';
 import SOSDetailModal from '@/components/admin/sos/SOSDetailModal';
@@ -34,6 +34,8 @@ export default function SOSMonitorPage() {
   const [selectedHQ, setSelectedHQ] = useState<SOSHQ | null>(null);
   const [correctedNearbySOS, setCorrectedNearbySOS] = useState<(NearbySOS & { distanceKm?: number })[]>([]);
   const previousSOSCountRef = useRef<number>(0);
+  const [sharingLoading, setSharingLoading] = useState<string | null>(null);
+  const [shareLinkSuccess, setShareLinkSuccess] = useState<{ sosId: string; link: string } | null>(null);
 
   // Function to play SOS alert sound using Web Audio API
   const playSOSAlert = () => {
@@ -282,6 +284,63 @@ export default function SOSMonitorPage() {
       }
       return newChats;
     });
+  };
+
+  const handleShareRescuerLink = async (sosId: string) => {
+    try {
+      setSharingLoading(sosId);
+      
+      // Get city code from auth user or selected HQ
+      const cityCode = auth.user?.cityCode || selectedHQ?.cityCode || 'default';
+      
+      const result = await createAnonymousRescuer(sosId, cityCode);
+      
+      if (result.success && result.data?.token) {
+        const token = result.data.token;
+        const link = `${window.location.origin}/admin/rescuer/${sosId}?token=${token}`;
+        
+        // Copy to clipboard
+        try {
+          await navigator.clipboard.writeText(link);
+          setShareLinkSuccess({ sosId, link });
+          setNotification({ 
+            message: `✓ Rescuer link copied to clipboard!`, 
+            sosId 
+          });
+          setTimeout(() => {
+            setShareLinkSuccess(null);
+            setNotification(null);
+          }, 4000);
+        } catch (clipboardError) {
+          // If clipboard fails, show the link in notification
+          console.error('Clipboard error:', clipboardError);
+          setShareLinkSuccess({ sosId, link });
+          setNotification({ 
+            message: `✓ Link generated: ${link}`, 
+            sosId 
+          });
+          setTimeout(() => {
+            setShareLinkSuccess(null);
+            setNotification(null);
+          }, 5000);
+        }
+      } else {
+        setNotification({ 
+          message: `✗ Failed to create rescuer link: ${result.error}`, 
+          sosId 
+        });
+        setTimeout(() => setNotification(null), 3000);
+      }
+    } catch (err) {
+      console.error('Error sharing rescuer link:', err);
+      setNotification({ 
+        message: `✗ Error creating rescuer link`, 
+        sosId 
+      });
+      setTimeout(() => setNotification(null), 3000);
+    } finally {
+      setSharingLoading(null);
+    }
   };
 
   const activeSOS = nearbySOS.filter((sos) => sos.status === 'active').length;
@@ -663,6 +722,22 @@ export default function SOSMonitorPage() {
                           className="flex-1 px-3 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition-all shadow-sm hover:shadow-md group-hover:scale-105"
                         >
                           📋 Details
+                        </button>
+                        <button
+                          onClick={() => handleShareRescuerLink(sos.sosId)}
+                          disabled={sharingLoading === sos.sosId}
+                          className="flex-1 px-3 py-2.5 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-400 text-white text-xs font-bold rounded-lg transition-all shadow-sm hover:shadow-md group-hover:scale-105 flex items-center justify-center gap-1.5"
+                        >
+                          {sharingLoading === sos.sosId ? (
+                            <>
+                              <span className="animate-spin">⟳</span>
+                              Sharing...
+                            </>
+                          ) : (
+                            <>
+                              🔗 Share
+                            </>
+                          )}
                         </button>
                       </div>
                     </div>
