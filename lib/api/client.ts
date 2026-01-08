@@ -2,6 +2,7 @@ import axios, { AxiosError, AxiosRequestConfig } from 'axios';
 import { ApiResponse } from '@/types';
 import { getAuthToken } from '@/lib/auth/store';
 import { refreshAccessToken } from '@/lib/services/authService';
+import { clearAuth } from '@/lib/auth/store';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://admin.localhost';
 
@@ -16,13 +17,24 @@ export const apiClient = axios.create({
 // Flag to prevent infinite retry loops
 let isRefreshing = false;
 let refreshPromise: Promise<boolean> | null = null;
+let pendingRequests: Array<() => void> = [];
+
+/**
+ * Execute all pending requests after token refresh
+ */
+function executeQueuedRequests(): void {
+  pendingRequests.forEach((callback) => callback());
+  pendingRequests = [];
+}
 
 /**
  * Refresh token and retry the failed request
+ * Handles queuing of multiple 401 responses while one refresh is in progress
  */
 async function handleTokenRefresh(): Promise<boolean> {
   // If already refreshing, wait for that promise
   if (isRefreshing && refreshPromise) {
+    console.log('[API Client] Token already refreshing, waiting for completion');
     return refreshPromise;
   }
 
@@ -30,9 +42,17 @@ async function handleTokenRefresh(): Promise<boolean> {
   refreshPromise = (async () => {
     try {
       const result = await refreshAccessToken();
-      return result.success;
+      
+      if (result.success) {
+        console.log('[API Client] ✅ Token refreshed via API interceptor');
+        executeQueuedRequests();
+        return true;
+      } else {
+        console.error('[API Client] Token refresh failed:', result.error);
+        return false;
+      }
     } catch (error) {
-      console.error('[API Client] Token refresh failed:', error);
+      console.error('[API Client] Token refresh error:', error);
       return false;
     } finally {
       isRefreshing = false;
@@ -74,6 +94,7 @@ apiClient.interceptors.response.use(
           const newToken = getAuthToken();
           if (newToken) {
             originalRequest.headers.Authorization = `Bearer ${newToken}`;
+            console.log('[API Client] Retrying original request with new token');
             // Retry the original request with the new token
             return apiClient(originalRequest);
           }
@@ -83,6 +104,8 @@ apiClient.interceptors.response.use(
       }
 
       // If refresh failed, clear auth and redirect to login
+      console.log('[API Client] Token refresh failed, clearing auth and redirecting to login');
+      clearAuth();
       if (typeof window !== 'undefined') {
         localStorage.removeItem('auth_token');
         localStorage.removeItem('auth_refresh_token');

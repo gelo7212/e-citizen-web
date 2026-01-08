@@ -1,5 +1,5 @@
 import { TokenResponse, AuthUser, JWTClaims } from '@/types';
-import { setAuth, clearAuth } from '@/lib/auth/store';
+import { setAuth, clearAuth, getRefreshToken, updateTokens, getAuthToken } from '@/lib/auth/store';
 import { ROLE_SCOPES } from '@/lib/auth/scopes';
 
 /**
@@ -183,8 +183,8 @@ export async function loginWithFirebaseToken(
       }
     }
 
-    // Update global auth state
-    setAuth(user, accessToken);
+    // Update global auth state with both tokens
+    setAuth(user, accessToken, refreshToken);
 
     return { success: true, data: result.data };
   } catch (error) {
@@ -210,19 +210,29 @@ export function logout(): void {
 
 /**
  * Refresh access token using refresh token
- * Endpoint: POST /refresh
- * Request: { refreshToken: "..." } in body
- * Response: Same as token exchange (TokenResponse with accessToken, refreshToken, expiresIn)
+ * Endpoint: POST /api/identity/refresh
+ * Request: { refreshToken: "..." } in body + Authorization header with current token
+ * Response: { success: boolean, data: { accessToken, refreshToken, expiresIn, tokenType } }
  */
-export async function refreshAccessToken(): Promise<{ success: boolean; token?: string; error?: string }> {
+export async function refreshAccessToken(): Promise<{ success: boolean; token?: string; data?: TokenResponse; error?: string }> {
   try {
     const apiUrl = getApiUrl();
-    const refreshToken = typeof window !== 'undefined' ? localStorage.getItem('auth_refresh_token') : null;
+    const currentRefreshToken = getRefreshToken();
+    const currentAccessToken = getAuthToken();
 
-    if (!refreshToken) {
+    if (!currentRefreshToken) {
+      console.error('[TokenRotation] No refresh token available');
       return {
         success: false,
         error: 'No refresh token available',
+      };
+    }
+
+    if (!currentAccessToken) {
+      console.error('[TokenRotation] No access token available');
+      return {
+        success: false,
+        error: 'No access token available',
       };
     }
 
@@ -230,15 +240,28 @@ export async function refreshAccessToken(): Promise<{ success: boolean; token?: 
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${currentAccessToken}`,
       },
       body: JSON.stringify({
-        refreshToken,
+        refreshToken: currentRefreshToken,
       }),
     });
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       console.error('[TokenRotation] Token refresh failed:', response.status, errorData);
+      
+      // If 401, clear auth as refresh token is invalid
+      if (response.status === 401) {
+        clearAuth();
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('auth_token');
+          localStorage.removeItem('auth_refresh_token');
+          localStorage.removeItem('auth_user');
+        }
+      }
+      
       return {
         success: false,
         error: errorData.message || 'Token refresh failed',
@@ -248,6 +271,14 @@ export async function refreshAccessToken(): Promise<{ success: boolean; token?: 
     const data = await response.json();
     
     // Handle response format: { success: boolean, data: { accessToken, refreshToken, expiresIn, tokenType } }
+    if (!data.success) {
+      console.error('[TokenRotation] Refresh endpoint returned success:false', data);
+      return {
+        success: false,
+        error: data.error?.message || 'Token refresh failed',
+      };
+    }
+
     const tokenData = data.data || data;
     const newAccessToken = tokenData.accessToken;
     const newRefreshToken = tokenData.refreshToken;
@@ -268,20 +299,23 @@ export async function refreshAccessToken(): Promise<{ success: boolean; token?: 
       };
     }
 
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('auth_token', newAccessToken);
-      
-      // Update refresh token if provided in response (same as get token endpoint)
-      if (newRefreshToken) {
-        localStorage.setItem('auth_refresh_token', newRefreshToken);
-      }
-      
-      console.log('[TokenRotation] ✅ Token refreshed successfully');
-    }
+    // Update tokens in storage
+    updateTokens(newAccessToken, newRefreshToken || currentRefreshToken);
+    
+    console.log('[TokenRotation] ✅ Token refreshed successfully', {
+      expiresIn: tokenData.expiresIn,
+      newRefreshTokenProvided: !!newRefreshToken,
+    });
 
     return {
       success: true,
       token: newAccessToken,
+      data: {
+        accessToken: newAccessToken,
+        refreshToken: newRefreshToken || currentRefreshToken,
+        expiresIn: tokenData.expiresIn || 120,
+        tokenType: tokenData.tokenType || 'Bearer',
+      },
     };
   } catch (error) {
     console.error('[TokenRotation] Token refresh error:', error);

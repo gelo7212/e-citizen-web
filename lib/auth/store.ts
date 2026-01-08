@@ -3,6 +3,7 @@ import { AuthUser } from '@/types';
 // Store auth state
 let currentUser: AuthUser | null = null;
 let token: string | null = null;
+let refreshToken: string | null = null;
 
 /**
  * Initialize auth from localStorage (client-side)
@@ -12,10 +13,12 @@ export function initializeAuth(): AuthUser | null {
   
   const stored = localStorage.getItem('auth_user');
   const storedToken = localStorage.getItem('auth_token');
+  const storedRefreshToken = localStorage.getItem('auth_refresh_token');
   
   if (stored && storedToken) {
     currentUser = JSON.parse(stored);
     token = storedToken;
+    refreshToken = storedRefreshToken;
     return currentUser;
   }
   
@@ -49,7 +52,7 @@ export function getAuthUser(): AuthUser | null {
 }
 
 /**
- * Get current token
+ * Get current access token
  */
 export function getAuthToken(): string | null {
   // If in-memory state is set, return it
@@ -70,9 +73,54 @@ export function getAuthToken(): string | null {
 }
 
 /**
+ * Get current refresh token
+ */
+export function getRefreshToken(): string | null {
+  // If in-memory state is set, return it
+  if (refreshToken) {
+    return refreshToken;
+  }
+  
+  // Otherwise try to restore from localStorage
+  if (typeof window === 'undefined') return null;
+  
+  const stored = localStorage.getItem('auth_refresh_token');
+  if (stored) {
+    refreshToken = stored;
+    return stored;
+  }
+  
+  return null;
+}
+
+/**
+ * Update only the access token (used during token refresh)
+ */
+export function updateAccessToken(newToken: string): void {
+  token = newToken;
+  
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('auth_token', newToken);
+  }
+}
+
+/**
+ * Update both access and refresh tokens
+ */
+export function updateTokens(newAccessToken: string, newRefreshToken: string): void {
+  token = newAccessToken;
+  refreshToken = newRefreshToken;
+  
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('auth_token', newAccessToken);
+    localStorage.setItem('auth_refresh_token', newRefreshToken);
+  }
+}
+
+/**
  * Set authenticated user and token
  */
-export function setAuth(user: AuthUser, authToken: string): void {
+export function setAuth(user: AuthUser, authToken: string, authRefreshToken?: string): void {
   // Normalize role to uppercase for consistent checks
   const normalizedUser = {
     ...user,
@@ -82,10 +130,17 @@ export function setAuth(user: AuthUser, authToken: string): void {
   currentUser = normalizedUser;
   token = authToken;
   
+  if (authRefreshToken) {
+    refreshToken = authRefreshToken;
+  }
+  
   if (typeof window !== 'undefined') {
     try {
       localStorage.setItem('auth_user', JSON.stringify(normalizedUser));
       localStorage.setItem('auth_token', authToken);
+      if (authRefreshToken) {
+        localStorage.setItem('auth_refresh_token', authRefreshToken);
+      }
       console.log('✅ Auth persisted to localStorage:', { role: normalizedUser.role, id: normalizedUser.id });
     } catch (error) {
       console.error('❌ Failed to persist auth to localStorage:', error);

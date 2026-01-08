@@ -15,6 +15,7 @@ export function AssignmentForm({ incidentId, cityCode, onSuccess }: AssignmentFo
   const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     departmentCode: '',
+    departmentName: '',
     responderId: '',
     notes: '',
   });
@@ -38,6 +39,7 @@ export function AssignmentForm({ incidentId, cityCode, onSuccess }: AssignmentFo
         incidentId,
         cityCode,
         departmentCode: formData.departmentCode,
+        departmentName: formData.departmentName,
         responderId: formData.responderId,
         notes: formData.notes,
       });
@@ -76,7 +78,22 @@ export function AssignmentForm({ incidentId, cityCode, onSuccess }: AssignmentFo
             onChange={handleChange}
             required
             className="w-full px-3 py-2 border border-gray-300 rounded"
-            placeholder="e.g., FIRE_DEPT"
+            placeholder="e.g., 695a928fd72cd9dfea1e7fe0"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-admin-900 mb-1">
+            Department Name
+          </label>
+          <input
+            type="text"
+            name="departmentName"
+            value={formData.departmentName}
+            onChange={handleChange}
+            required
+            className="w-full px-3 py-2 border border-gray-300 rounded"
+            placeholder="e.g., Fire Department"
           />
         </div>
 

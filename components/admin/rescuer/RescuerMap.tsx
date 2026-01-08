@@ -349,9 +349,9 @@ const RescuerMap: React.FC<RescuerMapProps> = ({
               ${location.userId.slice(0, 12)}...
             </div>
             <div style="font-size: 12px; color: #666;">
-              <div>📍 ${location.latitude.toFixed(4)}, ${location.longitude.toFixed(4)}</div>
-              <div>📏 Accuracy: ${location.accuracy.toFixed(0)}m</div>
-              <div>⏱️ ${new Date(location.timestamp).toLocaleTimeString()}</div>
+              <div>📍 ${(location.latitude ?? 0).toFixed(4)}, ${(location.longitude ?? 0).toFixed(4)}</div>
+              <div>📏 Accuracy: ${(location.accuracy ?? 0).toFixed(0)}m</div>
+              <div>⏱️ ${new Date(location.timestamp || Date.now()).toLocaleTimeString()}</div>
             </div>
           </div>
         `);

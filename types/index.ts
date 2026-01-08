@@ -407,6 +407,7 @@ export interface UpdateIncidentRequest {
 
 export interface UpdateIncidentStatusRequest {
   status: IncidentStatus;
+  reason: string;
 }
 
 export interface Assignment {
@@ -415,6 +416,7 @@ export interface Assignment {
   responderId: string;
   cityCode: string;
   departmentCode: string;
+  departmentName?: string;
   status: AssignmentStatus;
   notes?: string;
   createdAt: string | Date;
@@ -434,6 +436,7 @@ export interface CreateAssignmentRequest {
   incidentId: string;
   cityCode: string;
   departmentCode: string;
+  departmentName?: string;
   responderId: string;
   notes?: string;
 }

@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { useRequireAuth } from '@/hooks/useAuth';
+import { useTokenRotation } from '@/hooks/useTokenRotation';
 
 export default function RescueLayout({
   children,
@@ -9,6 +10,22 @@ export default function RescueLayout({
   children: React.ReactNode;
 }) {
   const auth = useRequireAuth();
+
+  // ✅ Enable token rotation for rescue operations
+  useTokenRotation({
+    enabled: auth.isAuthenticated,
+    refreshThresholdMs: 60000, // Refresh 60 seconds before expiration
+    onTokenExpired: () => {
+      console.log('[RescueLayout] 🔴 Token expired, redirecting to login');
+      window.location.href = '/login';
+    },
+    onTokenRefreshed: () => {
+      console.log('[RescueLayout] 🟢 Token refreshed successfully');
+    },
+    onError: (error) => {
+      console.error('[RescueLayout] ❌ Token rotation error:', error);
+    },
+  });
 
   return (
     <div className="flex h-screen bg-gray-50">

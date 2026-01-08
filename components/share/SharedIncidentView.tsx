@@ -1,79 +1,104 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Incident, Assignment } from '@/types';
-import { getIncidentById, getAssignmentsByIncident } from '@/lib/api/endpoints';
+import { getIncidentById, getAssignmentById } from '@/lib/api/endpoints';
 import { LoadingSkeleton } from '@/components/shared/LoadingSkeleton';
 import { Card } from '@/components/shared/Card';
-import { AssignmentList } from './AssignmentList';
-import { IncidentUpdatePanel } from './IncidentUpdatePanel';
-import { ShareLinkModal } from './ShareLinkModal';
-import { IncidentMap } from './IncidentMap';
+import { IncidentMap } from '@/components/admin/incidents/IncidentMap';
+import { AssignmentStatusCard } from './AssignmentStatusCard';
 
-interface IncidentDetailProps {
+interface SharedIncidentViewProps {
   incidentId: string;
   cityCode: string;
+  token?: string;
+  assignmentId?: string;
+  departmentId?: string;
+  isShared?: boolean;
 }
 
-export function IncidentDetail({ incidentId, cityCode }: IncidentDetailProps) {
+export function SharedIncidentView({ 
+  incidentId, 
+  cityCode, 
+  token, 
+  assignmentId,
+  departmentId,
+  isShared 
+}: SharedIncidentViewProps) {
   const [incident, setIncident] = useState<Incident | null>(null);
-  const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [assignment, setAssignment] = useState<Assignment | null>(null);
   const [loading, setLoading] = useState(true);
+  const [assignmentLoading, setAssignmentLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showShareModal, setShowShareModal] = useState(false);
+
+  const getAuthConfig = () => {
+    if (token) {
+      return {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      };
+    }
+    return undefined;
+  };
+
+  const authConfig = useMemo(() => getAuthConfig(), [token]);
 
   useEffect(() => {
-    const loadData = async () => {
+    const loadIncident = async () => {
       try {
         setLoading(true);
         setError(null);
-        
-        const incidentResp = await getIncidentById(incidentId);
-        if (incidentResp.data) {
-          setIncident(incidentResp.data);
+
+        const response = await getIncidentById(incidentId, authConfig);
+        if (response.data) {
+          setIncident(response.data);
         } else {
           setError('Failed to load incident');
         }
-
-        const assignmentsResp = await getAssignmentsByIncident(incidentId);
-        if (assignmentsResp.data) {
-          // Handle both direct array and nested data structure
-          const assignmentData = Array.isArray(assignmentsResp.data) 
-            ? assignmentsResp.data 
-            : assignmentsResp.data.data || [];
-          setAssignments(assignmentData);
-        }
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load incident details');
+        setError(err instanceof Error ? err.message : 'Failed to load incident');
       } finally {
         setLoading(false);
       }
     };
 
-    loadData();
-  }, [incidentId]);
+    const loadAssignment = async () => {
+      if (!assignmentId) return;
+      try {
+        setAssignmentLoading(true);
+        console.log('Loading assignment:', assignmentId, 'with auth config:', !!authConfig?.headers?.Authorization);
+        const response = await getAssignmentById(assignmentId, authConfig);
+        console.log('Assignment response:', response);
+        if (response.data) {
+          setAssignment(response.data);
+        } else {
+          console.error('Failed to load assignment:', response.error);
+        }
+      } catch (err) {
+        console.error('Failed to load assignment:', err);
+      } finally {
+        setAssignmentLoading(false);
+      }
+    };
 
-  const handleStatusUpdated = (updatedIncident: Incident) => {
-    setIncident(updatedIncident);
-  };
-
-  const handleAssignmentCreated = async () => {
-    const assignmentsResp = await getAssignmentsByIncident(incidentId);
-    if (assignmentsResp.data) {
-      // Handle both direct array and nested data structure
-      const assignmentData = Array.isArray(assignmentsResp.data) 
-        ? assignmentsResp.data 
-        : assignmentsResp.data.data || [];
-      setAssignments(assignmentData);
-    }
-  };
+    loadIncident();
+    loadAssignment();
+  }, [incidentId, assignmentId, authConfig]);
 
   if (loading) {
     return <LoadingSkeleton />;
   }
 
   if (!incident) {
-    return <div className="text-red-600">Incident not found</div>;
+    return (
+      <div className="p-8">
+        <div className="text-red-600 text-center">
+          <p className="text-lg font-semibold">Incident not found</p>
+          <p className="text-sm mt-2">The incident you're looking for doesn't exist or access has been revoked.</p>
+        </div>
+      </div>
+    );
   }
 
   const severityColors: Record<string, string> = {
@@ -197,33 +222,45 @@ export function IncidentDetail({ incidentId, cityCode }: IncidentDetailProps) {
         </div>
       </Card>
 
-      <IncidentUpdatePanel
-        incident={incident}
-        cityCode={cityCode}
-        onStatusUpdated={handleStatusUpdated}
-        onAssignmentCreated={handleAssignmentCreated}
-      />
-
-      <div className="flex justify-between items-center">
-        <h3 className="text-xl font-bold text-admin-900">Assignments</h3>
-        <button
-          onClick={() => setShowShareModal(true)}
-          className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
-        >
-          Share Report
-        </button>
-      </div>
-
-      <AssignmentList assignments={assignments} />
-
-      {showShareModal && (
-        <ShareLinkModal
-          incidentId={incidentId}
-          cityCode={cityCode}
-          assignments={assignments}
-          onClose={() => setShowShareModal(false)}
-        />
+      {/* Shared View - Assignment Info Section */}
+      {isShared && assignmentId && (
+        assignment ? (
+          <AssignmentStatusCard
+            assignment={assignment}
+            incidentId={incidentId}
+            onStatusChanged={async () => {
+              // Reload assignment after status change
+              try {
+                const response = await getAssignmentById(assignmentId, authConfig);
+                if (response.data) {
+                  setAssignment(response.data);
+                }
+              } catch (err) {
+                console.error('Failed to reload assignment:', err);
+              }
+            }}
+            authConfig={authConfig}
+          />
+        ) : (
+          <Card className="p-6">
+            <h3 className="text-lg font-semibold text-admin-900 mb-4">Assignment Status</h3>
+            <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded">
+              <p className="text-sm text-amber-800">
+                Loading assignment details... Assignment ID: <span className="font-mono font-semibold">{assignmentId}</span>
+              </p>
+            </div>
+            
+            {/* Show loading spinner or message */}
+            <div className="text-center py-8">
+              <div className="inline-block">
+                <div className="animate-spin rounded-full h-8 w-8 border border-gray-300 border-t-blue-600"></div>
+              </div>
+              <p className="text-sm text-gray-600 mt-3">Loading assignment details...</p>
+            </div>
+          </Card>
+        )
       )}
     </div>
   );
 }
+

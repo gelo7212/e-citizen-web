@@ -76,7 +76,7 @@ export function AssignmentList({ assignments }: AssignmentListProps) {
                 <strong>Responder:</strong> {assignment.responderId}
               </p>
               <p className="text-sm text-admin-600 mb-2">
-                <strong>Department:</strong> {assignment.departmentCode}
+                <strong>Department:</strong> {assignment.departmentName}
               </p>
               {assignment.notes && (
                 <p className="text-sm text-admin-600">

@@ -1,61 +1,151 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { getAuthToken } from '@/lib/auth/store';
+import { refreshAccessToken } from '@/lib/services/authService';
+import { getTokenTimeRemaining } from '@/lib/auth/tokenRotation';
 
 interface UseTokenRotationOptions {
   enabled?: boolean;
+  refreshThresholdMs?: number; // How much time before expiration to refresh (default: 60 seconds)
   onTokenExpired?: () => void;
+  onTokenRefreshed?: () => void;
   onError?: (error: string) => void;
 }
 
 /**
- * Token Rotation Hook (Deprecated - Passive Refresh Strategy)
+ * Token Rotation Hook - Active Token Refresh Strategy
  * 
- * This hook is kept for backward compatibility but no longer performs active token checks.
- * Token refresh is now handled automatically by the API client interceptor when requests fail with 401.
+ * This hook automatically refreshes the access token before it expires.
  * 
- * The new approach:
- * - No periodic token expiration checks
- * - Tokens are only refreshed when API requests fail (401 response)
- * - Refresh tokens are valid for 7 days, providing a large window
- * - Reduces unnecessary API calls and improves performance
+ * Strategy:
+ * - Checks token expiration on mount and periodically
+ * - Refreshes token proactively when approaching expiration
+ * - Falls back to API client interceptor for reactive 401 handling
+ * - Threshold: refreshes 60 seconds before expiration by default
  * 
- * @deprecated Use API client interceptor for automatic token refresh instead
  * @example
  * ```typescript
- * // This hook can still be called but does nothing
- * useTokenRotation({ enabled: true });
- * // Token refresh is now handled in lib/api/client.ts
+ * useTokenRotation({ 
+ *   enabled: true,
+ *   refreshThresholdMs: 60000, // Refresh 1 minute before expiration
+ *   onTokenExpired: () => logout(),
+ *   onError: (error) => console.error('Token error:', error)
+ * });
  * ```
  */
 export function useTokenRotation(options: UseTokenRotationOptions = {}) {
   const {
     enabled = true,
+    refreshThresholdMs = 60000, // 60 seconds before expiration
     onTokenExpired,
+    onTokenRefreshed,
     onError,
   } = options;
+
+  const refreshTimeoutRef = useRef<NodeJS.Timeout>();
+  const checkIntervalRef = useRef<NodeJS.Timeout>();
 
   useEffect(() => {
     if (!enabled) {
       return;
     }
 
-    // Perform initial validation on mount
-    const token = getAuthToken();
-    if (!token) {
-      onTokenExpired?.();
-    }
+    const scheduleTokenRefresh = () => {
+      // Clear any existing timeout/interval
+      if (refreshTimeoutRef.current) {
+        clearTimeout(refreshTimeoutRef.current);
+      }
+      if (checkIntervalRef.current) {
+        clearInterval(checkIntervalRef.current);
+      }
 
-    // No periodic checks - token refresh is handled by API client interceptor
-    // This cleanup is not strictly necessary but provided for consistency
-    return () => {
-      // Cleanup
+      const token = getAuthToken();
+      if (!token) {
+        onTokenExpired?.();
+        return;
+      }
+
+      const timeRemaining = getTokenTimeRemaining(token);
+      
+      if (timeRemaining === null) {
+        console.warn('[TokenRotation] Could not determine token expiration');
+        onError?.('Could not determine token expiration');
+        return;
+      }
+
+      // If token is already expired or expiring very soon, refresh immediately
+      if (timeRemaining <= refreshThresholdMs) {
+        console.log('[TokenRotation] Token expiring soon, refreshing immediately', {
+          timeRemaining: `${(timeRemaining / 1000).toFixed(2)}s`,
+          threshold: `${(refreshThresholdMs / 1000).toFixed(2)}s`,
+        });
+
+        performTokenRefresh().then((success) => {
+          if (success) {
+            // Reschedule after refresh
+            scheduleTokenRefresh();
+          }
+        });
+      } else {
+        // Schedule refresh for threshold time before expiration
+        const refreshIn = timeRemaining - refreshThresholdMs;
+        
+        console.log('[TokenRotation] Token refresh scheduled', {
+          timeRemaining: `${(timeRemaining / 1000).toFixed(2)}s`,
+          refreshIn: `${(refreshIn / 1000).toFixed(2)}s`,
+        });
+
+        refreshTimeoutRef.current = setTimeout(() => {
+          console.log('[TokenRotation] Executing scheduled token refresh');
+          performTokenRefresh().then((success) => {
+            if (success) {
+              // Reschedule after refresh
+              scheduleTokenRefresh();
+            }
+          });
+        }, refreshIn);
+      }
     };
-  }, [enabled, onTokenExpired, onError]);
+
+    const performTokenRefresh = async (): Promise<boolean> => {
+      try {
+        const result = await refreshAccessToken();
+        
+        if (result.success) {
+          console.log('[TokenRotation] ✅ Token refreshed successfully via hook');
+          onTokenRefreshed?.();
+          return true;
+        } else {
+          const error = result.error || 'Token refresh failed';
+          console.error('[TokenRotation] Token refresh failed:', error);
+          onError?.(error);
+          return false;
+        }
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+        console.error('[TokenRotation] Token refresh error:', errorMsg);
+        onError?.(errorMsg);
+        return false;
+      }
+    };
+
+    // Initial schedule on mount
+    scheduleTokenRefresh();
+
+    // Cleanup
+    return () => {
+      if (refreshTimeoutRef.current) {
+        clearTimeout(refreshTimeoutRef.current);
+      }
+      if (checkIntervalRef.current) {
+        clearInterval(checkIntervalRef.current);
+      }
+    };
+  }, [enabled, refreshThresholdMs, onTokenExpired, onTokenRefreshed, onError]);
 
   return {
-    // Empty return for backward compatibility
+    // Public API for manual refresh if needed
   };
 }
 

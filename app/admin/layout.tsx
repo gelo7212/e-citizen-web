@@ -4,6 +4,7 @@ import React, { useEffect } from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { useRequireAuth } from '@/hooks/useAuth';
 import { useScopes } from '@/hooks/useScopes';
+import { useTokenRotation } from '@/hooks/useTokenRotation';
 import { SetupProvider } from '@/context/SetupContext';
 import { SetupGuard } from '@/components/admin/setup/SetupGuard';
 import {
@@ -29,6 +30,22 @@ export default function AdminLayout({
   // Skip auth hooks for rescuer route with token
   const auth = !hasRescuerToken ? useRequireAuth() : null;
   const scopes = !hasRescuerToken ? useScopes() : null;
+
+  // ✅ Enable token rotation (for authenticated users only)
+  useTokenRotation({
+    enabled: !!auth && auth.isAuthenticated && !hasRescuerToken,
+    refreshThresholdMs: 60000, // Refresh 60 seconds before expiration
+    onTokenExpired: () => {
+      console.log('[AdminLayout] 🔴 Token expired, redirecting to login');
+      router.push('/login');
+    },
+    onTokenRefreshed: () => {
+      console.log('[AdminLayout] 🟢 Token refreshed successfully');
+    },
+    onError: (error) => {
+      console.error('[AdminLayout] ❌ Token rotation error:', error);
+    },
+  });
 
   // Check if on setup routes or already on a valid admin subsection
   const isSetupRoute = pathname.startsWith('/admin/setup');

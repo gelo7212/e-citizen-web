@@ -1,4 +1,5 @@
 import { fetchData, postData, updateData, deleteData, patchData } from './client';
+import { AxiosRequestConfig } from 'axios';
 import {
   Report,
   Announcement,
@@ -317,16 +318,16 @@ export async function getIncidentsByCity(
  * Get Incident by ID
  * GET /api/incidents/reports/:id
  */
-export async function getIncidentById(id: string) {
-  return fetchData<Incident>(`/api/incidents/reports/${id}`);
+export async function getIncidentById(id: string, config?: any) {
+  return fetchData<Incident>(`/api/incidents/reports/${id}`, config);
 }
 
 /**
  * Update Incident Status
  * PATCH /api/incidents/reports/:id/status
  */
-export async function updateIncidentStatus(id: string, data: UpdateIncidentStatusRequest) {
-  return patchData<Incident>(`/api/incidents/reports/${id}/status`, data);
+export async function updateIncidentStatus(id: string, data: UpdateIncidentStatusRequest, config?: any) {
+  return patchData<Incident>(`/api/incidents/reports/${id}/status`, data, config);
 }
 
 /**
@@ -349,8 +350,8 @@ export async function createAssignment(data: CreateAssignmentRequest) {
  * Get Assignment by ID
  * GET /api/incidents/assignments/:id
  */
-export async function getAssignmentById(id: string) {
-  return fetchData<Assignment>(`/api/incidents/assignments/${id}`);
+export async function getAssignmentById(id: string, config?: AxiosRequestConfig) {
+  return fetchData<Assignment>(`/api/incidents/assignments/${id}`, config);
 }
 
 /**
@@ -402,22 +403,37 @@ export async function getAssignmentsByResponder(
  * Accept Assignment
  * POST /api/incidents/assignments/:id/accept
  */
-export async function acceptAssignment(id: string) {
-  return postData<Assignment>(`/api/incidents/assignments/${id}/accept`, {});
+export async function acceptAssignment(id: string, config?: AxiosRequestConfig) {
+  return postData<Assignment>(`/api/incidents/assignments/${id}/accept`, {}, config);
 }
 
 /**
  * Reject Assignment
  * POST /api/incidents/assignments/:id/reject
  */
-export async function rejectAssignment(id: string, data?: AssignmentActionRequest) {
-  return postData<Assignment>(`/api/incidents/assignments/${id}/reject`, data || {});
+export async function rejectAssignment(id: string, data?: AssignmentActionRequest, config?: AxiosRequestConfig) {
+  return postData<Assignment>(`/api/incidents/assignments/${id}/reject`, data || {}, config);
 }
 
 /**
  * Complete Assignment
  * POST /api/incidents/assignments/:id/complete
  */
-export async function completeAssignment(id: string) {
-  return postData<Assignment>(`/api/incidents/assignments/${id}/complete`, {});
+export async function completeAssignment(id: string, data?: AssignmentActionRequest, config?: AxiosRequestConfig) {
+  return postData<Assignment>(`/api/incidents/assignments/${id}/complete`, data || {}, config);
+}
+
+/**
+ * Get all incidents for a department (via share token)
+ * GET /api/incidents/assignments/department/:cityCode/:departmentCode
+ */
+export async function getIncidentsByDepartment(
+  cityCode: string,
+  departmentCode: string,
+  config?: AxiosRequestConfig
+) {
+  return fetchData<Assignment[]>(
+    `/api/incidents/assignments/department/${cityCode}/${departmentCode}`,
+    config
+  );
 }
