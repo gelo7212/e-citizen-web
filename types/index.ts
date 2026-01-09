@@ -97,6 +97,15 @@ export interface SosEvent {
   notes?: string;
 }
 
+export interface SosAssignment {
+  sosId: string;
+  target: {
+    lat: number;
+    lng: number;
+  };
+  status: 'EN_ROUTE' | 'ARRIVED' | 'ASSISTING' | 'COMPLETED';
+}
+
 export interface YouthStudent {
   id: string;
   firstName: string;
@@ -263,7 +272,7 @@ export interface CompleteSetup {
 }
 
 // Invite Types
-export type InviteRole = 'CITY_ADMIN' | 'SOS_ADMIN' | 'SK_ADMIN';
+export type InviteRole = 'CITY_ADMIN' | 'SOS_ADMIN' | 'SK_ADMIN' | 'RESCUER' ;
 export type InviteStatus = 'PENDING' | 'USED' | 'EXPIRED';
 
 export interface Invite {

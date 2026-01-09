@@ -134,7 +134,7 @@ export const useSOSParticipants = ({
               'Authorization': `Bearer ${token}`,
               'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ userType }),
+            body: JSON.stringify({ userType:userType.toLocaleLowerCase() }),
           }
         );
 

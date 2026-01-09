@@ -9,6 +9,7 @@ import { getSOSHQByCity, createAnonymousRescuer } from '@/lib/services/sosServic
 import SOSMapComponent from '@/components/admin/sos/SOSMap';
 import SOSChatBox from '@/components/admin/sos/SOSChatBox';
 import SOSDetailModal from '@/components/admin/sos/SOSDetailModal';
+import { AssignRescuerModal } from '@/components/admin/sos/AssignRescuerModal';
 import { AlertIcon, CheckIcon, LocationIcon, RefreshIcon } from '@/components/admin/sos/SOSIcons';
 
 interface OpenChat {
@@ -28,14 +29,16 @@ export default function SOSMonitorPage() {
   const [selectedSOS, setSelectedSOS] = useState<NearbySOS | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
+  const previousSOSCountRef = useRef<number>(0);
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [hqLocation, setHqLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [sosHQs, setSOSHQs] = useState<SOSHQ[]>([]);
   const [selectedHQ, setSelectedHQ] = useState<SOSHQ | null>(null);
   const [correctedNearbySOS, setCorrectedNearbySOS] = useState<(NearbySOS & { distanceKm?: number })[]>([]);
-  const previousSOSCountRef = useRef<number>(0);
   const [sharingLoading, setSharingLoading] = useState<string | null>(null);
   const [shareLinkSuccess, setShareLinkSuccess] = useState<{ sosId: string; link: string } | null>(null);
+  const [selectedSOSForAssignment, setSelectedSOSForAssignment] = useState<string | null>(null);
+  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
 
   // Function to play SOS alert sound using Web Audio API
   const playSOSAlert = () => {
@@ -724,6 +727,15 @@ export default function SOSMonitorPage() {
                           📋 Details
                         </button>
                         <button
+                          onClick={() => {
+                            setSelectedSOSForAssignment(sos.sosId);
+                            setIsAssignModalOpen(true);
+                          }}
+                          className="flex-1 px-3 py-2.5 bg-orange-600 hover:bg-orange-700 text-white text-xs font-bold rounded-lg transition-all shadow-sm hover:shadow-md group-hover:scale-105"
+                        >
+                          👮 Assign
+                        </button>
+                        <button
                           onClick={() => handleShareRescuerLink(sos.sosId)}
                           disabled={sharingLoading === sos.sosId}
                           className="flex-1 px-3 py-2.5 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-400 text-white text-xs font-bold rounded-lg transition-all shadow-sm hover:shadow-md group-hover:scale-105 flex items-center justify-center gap-1.5"
@@ -779,6 +791,25 @@ export default function SOSMonitorPage() {
             const location = `${selectedSOS.address?.barangay || 'Unknown Location'}, ${selectedSOS.address?.city || ''}`.trim();
             // setNotification({ message: `💬 Chat opened for ${location}`, sosId: selectedSOS.sosId });
             openChat(selectedSOS.sosId, `SOS - ${location}`);
+            setTimeout(() => setNotification(null), 3000);
+          }}
+        />
+      )}
+
+      {/* Assign Rescuer Modal */}
+      {selectedSOSForAssignment && (
+        <AssignRescuerModal
+          sosId={selectedSOSForAssignment}
+          isOpen={isAssignModalOpen}
+          onClose={() => {
+            setIsAssignModalOpen(false);
+            setSelectedSOSForAssignment(null);
+          }}
+          onSuccess={() => {
+            setNotification({
+              message: '✓ Rescuer assigned successfully!',
+              sosId: selectedSOSForAssignment,
+            });
             setTimeout(() => setNotification(null), 3000);
           }}
         />

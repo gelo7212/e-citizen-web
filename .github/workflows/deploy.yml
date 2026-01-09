@@ -1,0 +1,246 @@
+name: Frontend CI/CD Pipeline
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Choose environment to deploy'
+        required: true
+        default: 'PILOT'
+        type: choice
+        options:
+          - DEV
+          - PILOT
+          - PROD
+      deploy_only:
+        description: 'Skip build and deploy only'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    environment: ${{ github.event.inputs.environment }}
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: Set up environment variables
+      id: set-env
+      run: |
+        $ENV = "${{ github.event.inputs.environment }}"
+        $ENV_LOWER = $ENV.ToLower()
+        
+        Write-Output "ENVIRONMENT=$ENV" >> $env:GITHUB_ENV
+        Write-Output "ENVIRONMENT_LOWER=$ENV_LOWER" >> $env:GITHUB_ENV
+        Write-Output "COMPOSE_FILE=docker-compose.${ENV_LOWER}.yml" >> $env:GITHUB_ENV
+        Write-Output "PROJECT_NAME=ecitizen-fe-${ENV_LOWER}" >> $env:GITHUB_ENV
+
+    - name: Create .env file
+      env:
+        NEXT_PUBLIC_API_URL_PROD: ${{ secrets.NEXT_PUBLIC_API_URL_PROD }}
+        NEXT_PUBLIC_API_URL_PILOT: ${{ secrets.NEXT_PUBLIC_API_URL_PILOT }}
+        NEXT_PUBLIC_API_URL_DEV: ${{ secrets.NEXT_PUBLIC_API_URL_DEV }}
+        NEXT_PUBLIC_FIREBASE_API_KEY: ${{ secrets.NEXT_PUBLIC_FIREBASE_API_KEY }}
+        NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ${{ secrets.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN }}
+        NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}
+        NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: ${{ secrets.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET }}
+        NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }}
+        NEXT_PUBLIC_FIREBASE_APP_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_APP_ID }}
+        NEXT_PUBLIC_APP_NAME: ${{ vars.NEXT_PUBLIC_APP_NAME }}
+        NEXT_PUBLIC_APP_VERSION: ${{ vars.NEXT_PUBLIC_APP_VERSION }}
+        NODE_ENV: production
+      run: |
+        $env_type = "${{ github.event.inputs.environment }}"
+        
+        $env_vars = @{}
+        
+        switch ($env_type) {
+          "PROD" {
+            $env_vars = @{
+              "NEXT_PUBLIC_API_URL" = $env:NEXT_PUBLIC_API_URL_PROD
+              "NEXT_PUBLIC_FIREBASE_API_KEY" = $env:NEXT_PUBLIC_FIREBASE_API_KEY
+              "NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN" = $env:NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+              "NEXT_PUBLIC_FIREBASE_PROJECT_ID" = $env:NEXT_PUBLIC_FIREBASE_PROJECT_ID
+              "NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET" = $env:NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+              "NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID" = $env:NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+              "NEXT_PUBLIC_FIREBASE_APP_ID" = $env:NEXT_PUBLIC_FIREBASE_APP_ID
+              "NEXT_PUBLIC_APP_NAME" = $env:NEXT_PUBLIC_APP_NAME
+              "NODE_ENV" = "production"
+            }
+          }
+          "PILOT" {
+            $env_vars = @{
+              "NEXT_PUBLIC_API_URL" = $env:NEXT_PUBLIC_API_URL_PILOT
+              "NEXT_PUBLIC_FIREBASE_API_KEY" = $env:NEXT_PUBLIC_FIREBASE_API_KEY
+              "NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN" = $env:NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+              "NEXT_PUBLIC_FIREBASE_PROJECT_ID" = $env:NEXT_PUBLIC_FIREBASE_PROJECT_ID
+              "NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET" = $env:NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+              "NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID" = $env:NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+              "NEXT_PUBLIC_FIREBASE_APP_ID" = $env:NEXT_PUBLIC_FIREBASE_APP_ID
+              "NEXT_PUBLIC_APP_NAME" = $env:NEXT_PUBLIC_APP_NAME
+              "NODE_ENV" = "production"
+            }
+          }
+          default {
+            $env_vars = @{
+              "NEXT_PUBLIC_API_URL" = $env:NEXT_PUBLIC_API_URL_DEV
+              "NEXT_PUBLIC_FIREBASE_API_KEY" = $env:NEXT_PUBLIC_FIREBASE_API_KEY
+              "NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN" = $env:NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+              "NEXT_PUBLIC_FIREBASE_PROJECT_ID" = $env:NEXT_PUBLIC_FIREBASE_PROJECT_ID
+              "NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET" = $env:NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+              "NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID" = $env:NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+              "NEXT_PUBLIC_FIREBASE_APP_ID" = $env:NEXT_PUBLIC_FIREBASE_APP_ID
+              "NEXT_PUBLIC_APP_NAME" = $env:NEXT_PUBLIC_APP_NAME
+              "NODE_ENV" = "production"
+            }
+          }
+        }
+        
+        $content = ""
+        foreach ($key in $env_vars.Keys) {
+          if ($env_vars[$key]) {
+            $content += "$key=`"$($env_vars[$key])`"`n"
+          }
+        }
+        
+        Set-Content -Path ".env.local" -Value $content -Encoding UTF8
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+        cache: 'npm'
+
+    - name: Install Dependencies
+      if: ${{ github.event.inputs.deploy_only == 'false' }}
+      run: npm ci
+
+    - name: Lint
+      if: ${{ github.event.inputs.deploy_only == 'false' }}
+      run: |
+        if (Test-Path ".eslintrc" -o (Test-Path ".eslintrc.js") -o (Test-Path ".eslintrc.json")) {
+          npm run lint
+        } else {
+          Write-Output "No eslint config found, skipping lint"
+        }
+
+    - name: Build
+      if: ${{ github.event.inputs.deploy_only == 'false' }}
+      run: npm run build
+
+    - name: Check Docker Image Cache
+      id: docker-cache
+      if: ${{ github.event.inputs.deploy_only == 'false' }}
+      run: |
+        $exists = docker images | Select-String "ecitizen-fe:latest"
+        if ($exists) {
+          Write-Output "image_exists=true" >> $env:GITHUB_OUTPUT
+        } else {
+          Write-Output "image_exists=false" >> $env:GITHUB_OUTPUT
+        }
+
+    - name: Build Docker Image
+      if: ${{ github.event.inputs.deploy_only == 'false' }}
+      env:
+        COMPOSE_FILE: ${{ env.COMPOSE_FILE }}
+      run: |
+        Write-Output "Building Docker image for environment: ${{ env.ENVIRONMENT }}"
+        
+        if (Test-Path "Dockerfile.${{ env.ENVIRONMENT_LOWER }}") {
+          docker build -f "Dockerfile.${{ env.ENVIRONMENT_LOWER }}" -t ecitizen-fe:latest -t "ecitizen-fe:${{ env.ENVIRONMENT_LOWER }}" .
+        } elseif (Test-Path "Dockerfile") {
+          docker build -f "Dockerfile" -t ecitizen-fe:latest -t "ecitizen-fe:${{ env.ENVIRONMENT_LOWER }}" .
+        } else {
+          Write-Output "ERROR: No Dockerfile found"
+          exit 1
+        }
+
+    - name: Validate Docker Compose
+      env:
+        COMPOSE_FILE: ${{ env.COMPOSE_FILE }}
+      run: |
+        Write-Output "Validating docker-compose file..."
+        
+        if (-not (Test-Path "${{ env.COMPOSE_FILE }}")) {
+          Write-Output "ERROR: Compose file not found: ${{ env.COMPOSE_FILE }}"
+          Get-ChildItem
+          exit 1
+        }
+        
+        docker-compose -f "${{ env.COMPOSE_FILE }}" config > $null
+        if ($LASTEXITCODE -ne 0) {
+          Write-Output "ERROR: Invalid docker compose file"
+          exit 1
+        }
+        Write-Output "Docker compose file is valid"
+
+    - name: Stop and Remove Old Container
+      env:
+        COMPOSE_FILE: ${{ env.COMPOSE_FILE }}
+        PROJECT_NAME: ${{ env.PROJECT_NAME }}
+      run: |
+        Write-Output "Stopping containers for project ${{ env.PROJECT_NAME }}..."
+        docker-compose -f "${{ env.COMPOSE_FILE }}" -p "${{ env.PROJECT_NAME }}" rm -sf 2>$null | Out-Null
+        Write-Output "Old containers removed"
+
+    - name: Deploy Container
+      env:
+        COMPOSE_FILE: ${{ env.COMPOSE_FILE }}
+        PROJECT_NAME: ${{ env.PROJECT_NAME }}
+      run: |
+        Write-Output "=========================================="
+        Write-Output "Deployment started at $(Get-Date)"
+        Write-Output "=========================================="
+        Write-Output "Environment: ${{ env.ENVIRONMENT }}"
+        Write-Output "Project: ${{ env.PROJECT_NAME }}"
+        Write-Output ""
+        
+        Write-Output "Starting containers..."
+        docker-compose -f "${{ env.COMPOSE_FILE }}" -p "${{ env.PROJECT_NAME }}" up -d
+        
+        if ($LASTEXITCODE -ne 0) {
+          Write-Output "ERROR: Failed to start containers"
+          exit 1
+        }
+        
+        Start-Sleep -Seconds 3
+        Write-Output "Checking running containers..."
+        docker-compose -f "${{ env.COMPOSE_FILE }}" -p "${{ env.PROJECT_NAME }}" ps
+        
+        Write-Output ""
+        Write-Output "Checking container health..."
+        $exitedContainers = docker-compose -f "${{ env.COMPOSE_FILE }}" -p "${{ env.PROJECT_NAME }}" ps --status=exited 2>$null
+        
+        if ($exitedContainers) {
+          Write-Output "WARNING: Some containers have exited:"
+          Write-Output $exitedContainers
+          Write-Output ""
+          Write-Output "Checking logs for errors..."
+          docker-compose -f "${{ env.COMPOSE_FILE }}" -p "${{ env.PROJECT_NAME }}" logs --tail=50
+          exit 1
+        }
+        
+        Write-Output ""
+        Write-Output "=========================================="
+        Write-Output "Deployment completed successfully!"
+        Write-Output "=========================================="
+
+    - name: Post-Deployment Verification
+      env:
+        COMPOSE_FILE: ${{ env.COMPOSE_FILE }}
+        PROJECT_NAME: ${{ env.PROJECT_NAME }}
+      run: |
+        Write-Output "Verifying deployment..."
+        $containers = docker-compose -f "${{ env.COMPOSE_FILE }}" -p "${{ env.PROJECT_NAME }}" ps --services --filter "status=running"
+        
+        if ($containers.Count -gt 0) {
+          Write-Output "Deployment verification successful"
+          Write-Output "Running services:"
+          $containers | ForEach-Object { Write-Output "  - $_" }
+        } else {
+          Write-Output "ERROR: No running containers found"
+          exit 1
+        }

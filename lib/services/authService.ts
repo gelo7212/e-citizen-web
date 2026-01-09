@@ -132,10 +132,14 @@ export async function loginWithFirebaseToken(
     }
 
     const userId = payload.identity.userId;
-    const userRole = payload.identity.role;
+    let userRole = payload.identity.role;
     const cityCode = payload.actor?.cityCode;
+    const scopes = payload.identity.scopes || [];
     firebaseUid = payload.identity.firebaseUid;
-
+    if(scopes && scopes.length > 0 && scopes.find(s => s === 'temporary_access')) {
+      // If temporary_access scope is present, let the role be 'TEMPORARY_ACCESS'
+      userRole = 'TEMPORARY_ACCESS';
+    }
     if (!userId || !userRole) {
       return {
         success: false,

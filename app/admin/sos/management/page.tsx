@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRequireAuth } from '@/hooks/useAuth';
 import { useScopes } from '@/hooks/useScopes';
+import { AssignRescuerModal } from '@/components/admin/sos/AssignRescuerModal';
 import type { NearbySOS } from '@/lib/services/sosService';
 
 export default function SOSManagementPage() {
@@ -13,6 +14,8 @@ export default function SOSManagementPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [error, setError] = useState<string | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedSOSId, setSelectedSOSId] = useState<string | null>(null);
 
   // Note: Typically you'd fetch SOS requests here
   // For now, displaying the structure to work with actual SOS data
@@ -20,6 +23,16 @@ export default function SOSManagementPage() {
   if (!auth.isAuthenticated) {
     return <div className="p-4">Loading...</div>;
   }
+
+  const handleAssignClick = (sosId: string) => {
+    setSelectedSOSId(sosId);
+    setIsModalOpen(true);
+  };
+
+  const handleModalClose = () => {
+    setIsModalOpen(false);
+    setSelectedSOSId(null);
+  };
 
   // Filter and search
   let filteredRequests = sosRequests;
@@ -125,18 +138,21 @@ export default function SOSManagementPage() {
                   <th className="px-6 py-4 text-left text-sm font-semibold text-slate-200">
                     Created
                   </th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-slate-200">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-700">
                 {isLoading ? (
                   <tr>
-                    <td colSpan={6} className="px-6 py-8 text-center text-slate-400">
+                    <td colSpan={7} className="px-6 py-8 text-center text-slate-400">
                       Loading...
                     </td>
                   </tr>
                 ) : filteredRequests.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-6 py-8 text-center text-slate-400">
+                    <td colSpan={7} className="px-6 py-8 text-center text-slate-400">
                       No SOS requests found
                     </td>
                   </tr>
@@ -173,6 +189,14 @@ export default function SOSManagementPage() {
                       <td className="px-6 py-4 text-sm text-slate-300">
                         {new Date(sos.createdAt).toLocaleString()}
                       </td>
+                      <td className="px-6 py-4 text-sm">
+                        <button
+                          onClick={() => handleAssignClick(sos.sosId)}
+                          className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded transition-colors whitespace-nowrap"
+                        >
+                          Assign Rescue
+                        </button>
+                      </td>
                     </tr>
                   ))
                 )}
@@ -189,6 +213,19 @@ export default function SOSManagementPage() {
             {error}
           </div>
         </div>
+      )}
+
+      {/* Assign Rescuer Modal */}
+      {selectedSOSId && (
+        <AssignRescuerModal
+          sosId={selectedSOSId}
+          isOpen={isModalOpen}
+          onClose={handleModalClose}
+          onSuccess={() => {
+            // Optionally refresh the list or show a success message
+            console.log('Rescuer assigned successfully');
+          }}
+        />
       )}
     </div>
   );

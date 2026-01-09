@@ -174,13 +174,6 @@ export default function RescuerPageRedesigned() {
     return () => navigator.geolocation.clearWatch(watchId);
   }, [rescuerId]);
 
-  // Initialize participants hook to fetch active participants
-  const { fetchActive: fetchActiveParticipants } = useSOSParticipants({
-    sosId,
-    token,
-    enabled: !!token && !!sosId && isAuthenticated === true,
-  });
-
   // WebSocket Setup
   const { socket, isConnected: wsConnected } = useSOSSocket({
     token,
@@ -273,16 +266,13 @@ export default function RescuerPageRedesigned() {
         }
 
         console.log('✓ Loaded initial SOS state:', sosData);
-        
-        // Fetch active participants on initial load
-        await fetchActiveParticipants();
       } catch (error) {
         console.error('Error loading SOS state:', error);
       }
     };
 
     loadSOSState();
-  }, [sosId, isAuthenticated, token, fetchActiveParticipants]);
+  }, [sosId, isAuthenticated, token]);
 
   // Check if rescuer is already a participant
   useEffect(() => {
@@ -455,9 +445,6 @@ export default function RescuerPageRedesigned() {
         console.log('✅ Successfully joined as participant');
         setIsAlreadyParticipant(true);
         setShowAcceptDialog(false);
-        
-        // Fetch active participants to update the list
-        await fetchActiveParticipants();
       } else {
         setAcceptError(data.error || 'Failed to accept participation');
       }

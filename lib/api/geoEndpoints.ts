@@ -51,15 +51,26 @@ export async function getProvinces(): Promise<ApiResponse<Province[]>> {
 }
 
 /**
- * Get municipalities/cities by province
+ * Get municipalities/cities by province or search by name/code
  * GET /municipalities?province=<province_name>
+ * GET /municipalities?query=<city_name_or_code>
  */
 export async function getMunicipalities(
-  provinceName: string
+  provinceName?: string,
+  query?: string
 ): Promise<ApiResponse<Municipality[]>> {
-  return fetchData<Municipality[]>(
-    `${GEO_BASE}/municipalities?province=${encodeURIComponent(provinceName)}`
-  );
+  const params = new URLSearchParams();
+  
+  if (query) {
+    params.append('query', encodeURIComponent(query));
+  } else if (provinceName) {
+    params.append('province', encodeURIComponent(provinceName));
+  }
+  
+  const queryString = params.toString();
+  const url = queryString ? `${GEO_BASE}/municipalities?${queryString}` : `${GEO_BASE}/municipalities`;
+  
+  return fetchData<Municipality[]>(url);
 }
 
 /**

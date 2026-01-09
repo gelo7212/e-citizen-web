@@ -7,6 +7,7 @@ import {
   SendMessagePayload,
   MessagesResponse,
   NearbySOS,
+  Rescuer,
   getSOSRequestById,
   getUserSOSRequests,
   getActiveCitizenSOS,
@@ -16,6 +17,8 @@ import {
   sendSOSMessage,
   getSOSMessages,
   getSOSMessageById,
+  getRescuers,
+  dispatchRescue,
 } from '@/lib/services/sosService';
 
 interface UseSOSState {
@@ -23,6 +26,7 @@ interface UseSOSState {
   sosRequests: SOSRequest[];
   nearbySOS: NearbySOS[];
   messages: SOSMessage[];
+  rescuers: Rescuer[];
   isLoading: boolean;
   error: string | null;
 }
@@ -37,6 +41,7 @@ export function useSOS() {
     sosRequests: [],
     nearbySOS: [],
     messages: [],
+    rescuers: [],
     isLoading: false,
     error: null,
   });
@@ -260,6 +265,56 @@ export function useSOS() {
     }
   }, []);
 
+  // =========================================================================
+  // RESCUER DISPATCH OPERATIONS
+  // =========================================================================
+
+  /**
+   * Fetch all available rescuers
+   */
+  const fetchRescuers = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await getRescuers();
+      if (result.success && result.data) {
+        setState(prev => ({ ...prev, rescuers: result.data, isLoading: false }));
+        return result.data;
+      } else {
+        setError(result.error || 'Failed to fetch rescuers');
+        return null;
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unknown error');
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  /**
+   * Dispatch a rescue to a specific rescuer
+   */
+  const assignRescuer = useCallback(async (sosId: string, rescuerId: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await dispatchRescue(sosId, rescuerId);
+      if (result.success) {
+        setError(null);
+        return true;
+      } else {
+        setError(result.error || 'Failed to dispatch rescue');
+        return false;
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unknown error');
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   return {
     ...state,
     setLoading,
@@ -275,5 +330,8 @@ export function useSOS() {
     sendMessage,
     fetchMessages,
     fetchMessageById,
+    // Rescuer dispatch operations
+    fetchRescuers,
+    assignRescuer,
   };
 }

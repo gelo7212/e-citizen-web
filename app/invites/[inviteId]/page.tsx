@@ -3,10 +3,11 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { validateInvite, acceptInvite } from '@/lib/api/endpoints';
+import { refreshAccessToken } from '@/lib/services/authService';
 import { useAuth } from '@/hooks/useAuth';
 import { Alert } from '@/components/shared/Alert';
 import { Card } from '@/components/shared/Card';
-import { ValidateInviteResponse, AcceptInviteResponse } from '@/types';
+import { ValidateInviteResponse, AcceptInviteResponse, JWTClaims } from '@/types';
 
 export default function AcceptInvitePage() {
   const params = useParams();
@@ -82,27 +83,37 @@ export default function AcceptInvitePage() {
     setIsSubmitting(true);
 
     try {
+      // Accept invite
       const response = await acceptInvite(inviteData.inviteId, { code });
 
       if (response.success && response.data) {
         setSuccess(response.data);
         
-        // Determine redirect URL based on role
-        let redirectUrl = '/admin/dashboard';
-        if (response.data.role) {
+        // Refresh token to get updated role and scopes after role change
+        const refreshResult = await refreshAccessToken();
+        
+        if (refreshResult.success && refreshResult.data) {
+          // Decode new token to get updated role
+          const payload = JSON.parse(atob(refreshResult.data.accessToken.split('.')[1])) as JWTClaims;
+          const newRole = payload.identity?.role;
+
+          // Determine redirect URL based on updated role
           const roleMap: Record<string, string> = {
             'CITY_ADMIN': '/admin/city',
             'SOS_ADMIN': '/admin/sos',
             'SK_ADMIN': '/admin/sk',
             'SUPER_ADMIN': '/admin/super-user',
+            'TEMPORARY_ACCESS': '/login',
           };
-          redirectUrl = roleMap[response.data.role] || '/admin/dashboard';
-        }
+          const redirectUrl = roleMap[newRole] || '/admin/dashboard';
 
-        // Redirect to admin dashboard after 2 seconds
-        setTimeout(() => {
-          router.push(redirectUrl);
-        }, 2000);
+          // Redirect after 2 seconds
+          setTimeout(() => {
+            router.push(redirectUrl);
+          }, 2000);
+        } else {
+          setError('Failed to refresh authentication');
+        }
       } else {
         setError(response.error?.message || 'Failed to accept invite');
       }
@@ -253,7 +264,7 @@ export default function AcceptInvitePage() {
 
             <button
               onClick={() => {
-                const returnUrl = `/invites/${inviteId}/accept`;
+                const returnUrl = `/invites/${inviteId}`;
                 sessionStorage.setItem('pendingInviteId', inviteId);
                 router.push(`/login?returnUrl=${encodeURIComponent(returnUrl)}`);
               }}

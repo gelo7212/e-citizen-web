@@ -606,3 +606,99 @@ export async function createAnonymousRescuer(
     };
   }
 }
+
+// ============================================================================
+// RESCUER MANAGEMENT ENDPOINTS
+// ============================================================================
+
+/**
+ * Rescuer type for rescuer list
+ */
+export interface Rescuer {
+  id: string;
+  firebaseUid: string;
+  role: string;
+  email: string;
+  phone: string;
+  displayName: string;
+  municipalityCode: string;
+  department: string | null;
+  registrationStatus: string;
+  createdAt: string;
+  updatedAt: string;
+  address: string | null;
+}
+
+/**
+ * Get all rescuers (RESCUER role only)
+ * GET /api/identity/admin/users?role=RESCUER
+ */
+export async function getRescuers(): Promise<{ success: boolean; data?: Rescuer[]; error?: string }> {
+  try {
+    const apiUrl = getApiUrl();
+    const url = `${apiUrl}/api/identity/admin/users?role=RESCUER`;
+
+    const response = await authenticatedFetch(url, {
+      method: 'GET',
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      return {
+        success: false,
+        error: errorData.error || `Failed to fetch rescuers: ${response.statusText}`,
+      };
+    }
+
+    const data = await response.json();
+    return {
+      success: true,
+      data: data.data || [],
+    };
+  } catch (error) {
+    console.error('Error fetching rescuers:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to fetch rescuers',
+    };
+  }
+}
+
+/**
+ * Dispatch rescue to a rescuer
+ * POST /api/sos/:sosId/dispatch/rescue
+ */
+export async function dispatchRescue(
+  sosId: string,
+  rescuerId: string
+): Promise<{ success: boolean; data?: any; error?: string }> {
+  try {
+    const bffUrl = getApiUrl();
+    const url = `${bffUrl}/api/sos/${sosId}/dispatch/rescue`;
+
+    const response = await authenticatedFetch(url, {
+      method: 'POST',
+      body: JSON.stringify({ rescuerId }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      return {
+        success: false,
+        error: errorData.error || errorData.message || `Failed to dispatch rescue: ${response.statusText}`,
+      };
+    }
+
+    const data = await response.json();
+    return {
+      success: true,
+      data: data.data || data,
+    };
+  } catch (error) {
+    console.error('Error dispatching rescue:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to dispatch rescue',
+    };
+  }
+}

@@ -45,7 +45,11 @@ export default function LoginPage() {
         } else {
           // Otherwise, redirect based on role
           const decoded = result.data.accessToken ? decodeToken(result.data.accessToken) : null;
-          if (decoded?.identity?.role === 'CITY_ADMIN') {
+          const userRole = decoded?.identity?.role;
+          
+          if (userRole === 'RESCUER') {
+            router.push('/rescuer/dashboard');
+          } else if (userRole === 'CITY_ADMIN') {
             router.push('/admin/setup/check');
           } else {
             router.push('/admin/dashboard');

@@ -5,7 +5,7 @@ import { Card } from '@/components/shared/Card';
 import { LoadingSkeleton } from '@/components/shared/LoadingSkeleton';
 import { useRequireAuth } from '@/hooks/useAuth';
 
-export default function RescueHistoryPage() {
+export default function RescuerHistoryPage() {
   const auth = useRequireAuth();
   const [isLoading] = React.useState(false);
 

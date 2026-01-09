@@ -4,40 +4,41 @@ import React from 'react';
 import { useRequireAuth } from '@/hooks/useAuth';
 import { useTokenRotation } from '@/hooks/useTokenRotation';
 
-export default function RescueLayout({
+export default function RescuerLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   const auth = useRequireAuth();
 
-  // ✅ Enable token rotation for rescue operations
+  // ✅ Enable token rotation for rescuer operations
   useTokenRotation({
     enabled: auth.isAuthenticated,
     refreshThresholdMs: 60000, // Refresh 60 seconds before expiration
     onTokenExpired: () => {
-      console.log('[RescueLayout] 🔴 Token expired, redirecting to login');
+      console.log('[RescuerLayout] 🔴 Token expired, redirecting to login');
       window.location.href = '/login';
     },
     onTokenRefreshed: () => {
-      console.log('[RescueLayout] 🟢 Token refreshed successfully');
+      console.log('[RescuerLayout] 🟢 Token refreshed successfully');
     },
     onError: (error) => {
-      console.error('[RescueLayout] ❌ Token rotation error:', error);
+      console.error('[RescuerLayout] ❌ Token rotation error:', error);
     },
   });
 
   return (
     <div className="flex h-screen bg-gray-50">
-      {/* Minimal navigation for rescue ops */}
+      {/* Minimal navigation for rescuer ops */}
       <div className="flex-1 flex flex-col">
         <div className="bg-white border-b border-gray-200 px-8 py-4 flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-gray-900">Rescue Operations</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Rescuer Dashboard</h1>
           <div className="flex items-center gap-4">
             <span className="text-sm text-gray-600">{auth.user?.role}</span>
             <button
               onClick={() => {
                 localStorage.removeItem('auth_token');
+                localStorage.removeItem('auth_refresh_token');
                 localStorage.removeItem('auth_user');
                 window.location.href = '/citizen/home';
               }}
@@ -51,19 +52,19 @@ export default function RescueLayout({
         {/* Quick navigation */}
         <div className="bg-white border-b border-gray-200 px-8 py-3 flex gap-4">
           <a
-            href="/rescue/active"
+            href="/rescuer/dashboard"
             className="px-4 py-2 hover:bg-gray-100 rounded"
           >
-            Active SOS
+            Dashboard
           </a>
           <a
-            href="/rescue/map"
+            href="/rescuer/map"
             className="px-4 py-2 hover:bg-gray-100 rounded"
           >
             Live Map
           </a>
           <a
-            href="/rescue/history"
+            href="/rescuer/history"
             className="px-4 py-2 hover:bg-gray-100 rounded"
           >
             History

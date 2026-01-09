@@ -9,7 +9,7 @@ import InvitesFilterBar from '@/components/admin/invites/FilterBar';
 import ShareInviteModal from '@/components/admin/invites/ShareInviteModal';
 import { InviteRole, InviteResponse } from '@/types';
 
-export default function AdminInvitesPage() {
+export default function SuperUserInvitesPage() {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [selectedRole, setSelectedRole] = useState<InviteRole | undefined>();
   const [selectedMunicipality, setSelectedMunicipality] = useState('');
@@ -33,14 +33,14 @@ export default function AdminInvitesPage() {
   };
 
   return (
-    <RoleGuard requiredRoles={['APP_ADMIN', 'CITY_ADMIN']}>
+    <RoleGuard requiredRoles={['APP_ADMIN']}>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex justify-between items-start">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">User Invites</h1>
+            <h1 className="text-3xl font-bold text-gray-900">System Admin Invites</h1>
             <p className="mt-2 text-gray-600">
-              Create and manage user invitations for admin roles
+              Create and manage admin invitations across all municipalities
             </p>
           </div>
           <button
@@ -83,13 +83,14 @@ export default function AdminInvitesPage() {
         </Card>
 
         {/* Info Box */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <h3 className="font-semibold text-blue-900 mb-2">Invite Information</h3>
-          <ul className="text-sm text-blue-800 space-y-1">
-            <li>✓ Invites expire after 15 minutes from creation</li>
-            <li>✓ Each invite has a unique 6-digit code</li>
-            <li>✓ Invites can only be accepted once</li>
-            <li>✓ CITY_ADMIN can only create invites for their municipality</li>
+        <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+          <h3 className="font-semibold text-purple-900 mb-2">Super User Permissions</h3>
+          <ul className="text-sm text-purple-800 space-y-1">
+            <li>✓ Create invites for ANY municipality</li>
+            <li>✓ Create invites for ALL admin roles</li>
+            <li>✓ View all invites in the system</li>
+            <li>✓ Manage system-wide admin accounts</li>
+            <li>✓ No municipality restrictions apply</li>
           </ul>
         </div>
       </div>

@@ -125,9 +125,21 @@ export async function approveAssistance(id: string, data: Partial<YouthAssistanc
 
 /**
  * Assigned SOS for rescuer
+ * Uses new endpoint: /api/sos/rescuer/assignment
  */
 export async function getAssignedSos() {
-  return fetchData<SosEvent[]>('/rescue/assigned-sos');
+  const bffUrl = process.env.NEXT_PUBLIC_API_BASE || 'http://admin.localhost';
+  const response = await fetch(`${bffUrl}/api/sos/rescuer/assignment`, {
+    headers: {
+      'Authorization': `Bearer ${localStorage.getItem('auth_token') || ''}`,
+    },
+  });
+  
+  if (!response.ok) {
+    throw new Error('Failed to fetch assigned SOS');
+  }
+  
+  return response.json();
 }
 
 /**
