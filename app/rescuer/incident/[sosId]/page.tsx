@@ -377,7 +377,7 @@ export default function RescuerIncidentPage() {
 
   // Watch user's location
   useEffect(() => {
-    if (!auth.isAuthenticated || !isAlreadyParticipant) return;
+    if (!auth.isAuthenticated || !isAlreadyParticipant || !token) return;
 
     if (!navigator.geolocation) {
       setLocationError('Geolocation not supported');
@@ -385,7 +385,7 @@ export default function RescuerIncidentPage() {
     }
 
     const watchId = navigator.geolocation.watchPosition(
-      (position) => {
+      async (position) => {
         const { latitude, longitude, accuracy } = position.coords;
         const timestamp = position.timestamp;
 
@@ -401,17 +401,28 @@ export default function RescuerIncidentPage() {
 
         setLocationError(null);
 
-        // Broadcast location if socket is connected
-        if (socket && isConnected) {
-          socket.emit('location:broadcast', {
-            userId: auth.user?.id,
-            sosId,
-            latitude,
-            longitude,
-            accuracy,
-            timestamp,
-            deviceId: 'current-device',
+        // Send location update via API
+        try {
+          const bffUrl = process.env.NEXT_PUBLIC_API_BASE || 'http://admin.localhost';
+          const response = await fetch(`${bffUrl}/api/sos/rescuer/location`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              sosId,
+              lat:latitude,
+              lng:longitude,
+              accuracy,
+            }),
           });
+
+          if (!response.ok) {
+            console.error('Failed to send location update:', response.statusText);
+          }
+        } catch (error) {
+          console.error('Error sending location update:', error);
         }
       },
       (error) => {
@@ -426,7 +437,7 @@ export default function RescuerIncidentPage() {
     );
 
     return () => navigator.geolocation.clearWatch(watchId);
-  }, [auth.isAuthenticated, isAlreadyParticipant, socket, isConnected, auth.user?.id, sosId]);
+  }, [auth.isAuthenticated, isAlreadyParticipant, token, auth.user?.id, sosId]);
 
   // Handle send message
   const handleSendMessage = async (e: React.FormEvent) => {

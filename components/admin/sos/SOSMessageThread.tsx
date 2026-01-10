@@ -31,6 +31,9 @@ export default function SOSMessageThread({ sosId }: SOSMessageProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
 
+  // Auto-detect message type based on content
+  const messageType: 'text' | 'system' = messageText.includes('\n') ? 'system' : 'text';
+
   // WebSocket connection for real-time updates
   // See: docs/WEBSOCKET_CONFIG_SOS_ADMIN.md for event documentation
   const { isConnected: wsConnected } = useSOSSocket({
@@ -98,7 +101,7 @@ export default function SOSMessageThread({ sosId }: SOSMessageProps) {
         senderType: 'SOS_ADMIN',
         senderId: user.id,
         senderDisplayName: `Admin (${user.role})`,
-        contentType: 'text',
+        contentType: messageType,
         content: messageText,
         cityId: user.cityCode,
       });
@@ -122,6 +125,8 @@ export default function SOSMessageThread({ sosId }: SOSMessageProps) {
         return { bg: 'bg-green-600', text: 'text-white' };
       case 'rescuer':
         return { bg: 'bg-orange-500', text: 'text-white' };
+      case 'system':
+        return { bg: 'bg-slate-700', text: 'text-white' };
       default:
         return { bg: 'bg-gray-600', text: 'text-white' };
     }
@@ -136,6 +141,8 @@ export default function SOSMessageThread({ sosId }: SOSMessageProps) {
         return '👨‍💼';
       case 'rescuer':
         return '🚑';
+      case 'system':
+        return '⚙️';
       default:
         return '💬';
     }
@@ -184,21 +191,25 @@ export default function SOSMessageThread({ sosId }: SOSMessageProps) {
             {/* Historical messages - sorted oldest to newest */}
             {sortedMessages.map((msg) => {
               const isAdmin = msg.senderType?.toLowerCase() === 'sos_admin' || msg.senderType?.toLowerCase() === 'admin';
+              const isSystem = msg.senderType?.toLowerCase() === 'system';
+              const shouldPreserveWhitespace = msg.content.includes('\n');
               const colors = getSenderColor(msg.senderType);
               
               return (
                 <div
                   key={`hist-${msg.id}`}
-                  className={`flex ${isAdmin ? 'justify-end' : 'justify-start'} gap-2 items-end`}
+                  className={`flex ${isAdmin || isSystem ? 'justify-end' : 'justify-start'} gap-2 items-end`}
                 >
-                  <div className={`flex flex-col ${isAdmin ? 'items-end' : 'items-start'}`}>
+                  <div className={`flex flex-col ${isAdmin || isSystem ? 'items-end' : 'items-start'}`}>
                     <p className="text-xs text-gray-500 mb-1">
                       {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </p>
                     <div
                       className={`max-w-sm px-3 py-2 rounded-md ${colors.bg} text-sm`}
                     >
-                      <p className="text-white break-words">{msg.content}</p>
+                      <p className={`text-white break-words ${shouldPreserveWhitespace ? 'whitespace-pre-wrap' : ''}`}>
+                        {msg.content}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -208,21 +219,25 @@ export default function SOSMessageThread({ sosId }: SOSMessageProps) {
             {/* Real-time messages from WebSocket - sorted oldest to newest */}
             {sortedRtMessages.map((msg) => {
               const isAdmin = msg.senderType?.toLowerCase() === 'sos_admin' || msg.senderType?.toLowerCase() === 'admin';
+              const isSystem = msg.senderType?.toLowerCase() === 'system';
+              const shouldPreserveWhitespace = msg.content.includes('\n');
               const colors = getSenderColor(msg.senderType);
               
               return (
                 <div
                   key={`rt-${msg.id}`}
-                  className={`flex ${isAdmin ? 'justify-end' : 'justify-start'} gap-2 items-end animate-fade-in`}
+                  className={`flex ${isAdmin || isSystem ? 'justify-end' : 'justify-start'} gap-2 items-end animate-fade-in`}
                 >
-                  <div className={`flex flex-col ${isAdmin ? 'items-end' : 'items-start'}`}>
+                  <div className={`flex flex-col ${isAdmin || isSystem ? 'items-end' : 'items-start'}`}>
                     <p className="text-xs text-gray-500 mb-1">
                       {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </p>
                     <div
                       className={`max-w-sm px-3 py-2 rounded-md ${colors.bg} text-sm`}
                     >
-                      <p className="text-white break-words">{msg.content}</p>
+                      <p className={`text-white break-words ${shouldPreserveWhitespace ? 'whitespace-pre-wrap' : ''}`}>
+                        {msg.content}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -241,20 +256,20 @@ export default function SOSMessageThread({ sosId }: SOSMessageProps) {
       )}
 
       {/* Message Input */}
-      <form onSubmit={handleSendMessage} className="p-2">
+      <form onSubmit={handleSendMessage} className="p-2 border-t border-gray-200">
         <div className="flex gap-2">
-          <input
-            type="text"
+          <textarea
             value={messageText}
             onChange={(e) => setMessageText(e.target.value)}
-            placeholder="Type your reply..."
+            placeholder="Type your message (press Enter for multi-line)..."
             disabled={isSending}
-            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-500 text-sm"
+            rows={messageType === 'system' ? 4 : 1}
+            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-500 text-sm resize-none"
           />
           <button
             type="submit"
             disabled={isSending || !messageText.trim()}
-            className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-medium py-2 px-4 rounded-lg transition text-sm whitespace-nowrap"
+            className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-medium py-2 px-4 rounded-lg transition text-sm whitespace-nowrap h-fit"
           >
             {isSending ? (
               <>
@@ -267,7 +282,9 @@ export default function SOSMessageThread({ sosId }: SOSMessageProps) {
           </button>
         </div>
         {messageText.length > 0 && (
-          <p className="text-xs text-gray-500 mt-2">{messageText.length} characters</p>
+          <p className="text-xs text-gray-500 mt-2">
+            {messageText.length} characters {messageType === 'system' ? `• ${messageText.split('\n').length} lines` : ''}
+          </p>
         )}
       </form>
     </div>
